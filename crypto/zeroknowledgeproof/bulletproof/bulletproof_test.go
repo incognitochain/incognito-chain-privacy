@@ -3,6 +3,7 @@ package bulletproof
 import (
 	"fmt"
 	"github.com/incognitochain/incognito-chain-privacy/crypto"
+	"github.com/incognitochain/incognito-chain/common"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
@@ -110,27 +111,27 @@ func TestAggregatedRangeProveVerify(t *testing.T) {
 		assert.Equal(t, nil, err)
 
 		// validate sanity for proof
-		//isValidSanity := proof.ValidateSanity()
-		//assert.Equal(t, true, isValidSanity)
+		isValidSanity := proof.ValidateSanity()
+		assert.Equal(t, true, isValidSanity)
 
 		// convert proof to bytes array
-		//bytes := proof.Bytes()
-		//expectProofSize := EstimateMultiRangeProofSize(numValue)
-		//assert.Equal(t, int(expectProofSize), len(bytes))
-		//
-		//// new aggregatedRangeProof from bytes array
-		//proof2 := new(AggregatedRangeProof)
-		//proof2.SetBytes(bytes)
+		bytes := proof.Bytes()
+		expectProofSize := EstimateAggBulletProofSize(numValue)
+		assert.Equal(t, int(expectProofSize), len(bytes))
 
-		//// verify the proof
-		//res, err = proof2.Verify()
-		//assert.Equal(t, true, res)
-		//assert.Equal(t, nil, err)
-		//
-		//// verify the proof faster
-		//res, err = proof2.VerifyFaster()
-		//assert.Equal(t, true, res)
-		//assert.Equal(t, nil, err)
+		// new aggregatedRangeProof from bytes array
+		proof2 := new(BulletProof)
+		proof2.SetBytes(bytes)
+
+		// verify the proof
+		res, err = proof2.Agg_Verify()
+		assert.Equal(t, true, res)
+		assert.Equal(t, nil, err)
+
+		// verify the proof faster
+		res, err = proof2.Agg_Verify_Fast()
+		assert.Equal(t, true, res)
+		assert.Equal(t, nil, err)
 	}
 
 }
@@ -189,88 +190,88 @@ func TestInnerProductProveVerify(t *testing.T) {
 	}
 }
 
-//func benchmarkAggRangeProof_Proof(numberofOutput int, b *testing.B) {
-//	wit := new(AggregatedRangeWitness)
-//	values := make([]uint64, numberofOutput)
-//	rands := make([]*crypto.Scalar, numberofOutput)
-//
-//	for i := range values {
-//		values[i] = uint64(rand.Uint64())
-//		rands[i] = crypto.RandomScalar()
-//	}
-//	wit.Set(values, rands)
-//
-//	b.ResetTimer()
-//
-//	for i := 0; i < b.N; i++ {
-//		wit.Prove()
-//	}
-//}
-//
-//func benchmarkAggRangeProof_Verify(numberofOutput int, b *testing.B) {
-//	wit := new(AggregatedRangeWitness)
-//	values := make([]uint64, numberofOutput)
-//	rands := make([]*crypto.Scalar, numberofOutput)
-//
-//	for i := range values {
-//		values[i] = uint64(common.RandInt64())
-//		rands[i] = crypto.RandomScalar()
-//	}
-//	wit.Set(values, rands)
-//	proof, _ := wit.Prove()
-//
-//	b.ResetTimer()
-//
-//	for i := 0; i < b.N; i++ {
-//		proof.Verify()
-//	}
-//}
-//
-//func benchmarkAggRangeProof_VerifyFaster(numberofOutput int, b *testing.B) {
-//	wit := new(AggregatedRangeWitness)
-//	values := make([]uint64, numberofOutput)
-//	rands := make([]*crypto.Scalar, numberofOutput)
-//
-//	for i := range values {
-//		values[i] = uint64(common.RandInt64())
-//		rands[i] = crypto.RandomScalar()
-//	}
-//	wit.Set(values, rands)
-//	proof, _ := wit.Prove()
-//
-//	b.ResetTimer()
-//
-//	for i := 0; i < b.N; i++ {
-//		proof.VerifyFaster()
-//	}
-//}
-//
-//func BenchmarkAggregatedRangeWitness_Prove1(b *testing.B) { benchmarkAggRangeProof_Proof(1, b) }
-//func BenchmarkAggregatedRangeProof_Verify1(b *testing.B)  { benchmarkAggRangeProof_Verify(1, b) }
-//func BenchmarkAggregatedRangeProof_VerifyFaster1(b *testing.B) {
-//	benchmarkAggRangeProof_VerifyFaster(1, b)
-//}
-//
-//func BenchmarkAggregatedRangeWitness_Prove2(b *testing.B) { benchmarkAggRangeProof_Proof(2, b) }
-//func BenchmarkAggregatedRangeProof_Verify2(b *testing.B)  { benchmarkAggRangeProof_Verify(2, b) }
-//func BenchmarkAggregatedRangeProof_VerifyFaster2(b *testing.B) {
-//	benchmarkAggRangeProof_VerifyFaster(2, b)
-//}
-//
-//func BenchmarkAggregatedRangeWitness_Prove4(b *testing.B) { benchmarkAggRangeProof_Proof(4, b) }
-//func BenchmarkAggregatedRangeProof_Verify4(b *testing.B)  { benchmarkAggRangeProof_Verify(4, b) }
-//func BenchmarkAggregatedRangeProof_VerifyFaster4(b *testing.B) {
-//	benchmarkAggRangeProof_VerifyFaster(4, b)
-//}
-//
-//func BenchmarkAggregatedRangeWitness_Prove8(b *testing.B) { benchmarkAggRangeProof_Proof(8, b) }
-//func BenchmarkAggregatedRangeProof_Verify8(b *testing.B)  { benchmarkAggRangeProof_Verify(8, b) }
-//func BenchmarkAggregatedRangeProof_VerifyFaster8(b *testing.B) {
-//	benchmarkAggRangeProof_VerifyFaster(8, b)
-//}
-//
-//func BenchmarkAggregatedRangeWitness_Prove16(b *testing.B) { benchmarkAggRangeProof_Proof(16, b) }
-//func BenchmarkAggregatedRangeProof_Verify16(b *testing.B)  { benchmarkAggRangeProof_Verify(16, b) }
-//func BenchmarkAggregatedRangeProof_VerifyFaster16(b *testing.B) {
-//	benchmarkAggRangeProof_VerifyFaster(16, b)
-//}
+func benchmarkAggRangeProof_Proof(numberofOutput int, b *testing.B) {
+	wit := new(BulletWitness)
+	values := make([]uint64, numberofOutput)
+	rands := make([]*crypto.Scalar, numberofOutput)
+
+	for i := range values {
+		values[i] = uint64(rand.Uint64())
+		rands[i] = crypto.RandomScalar()
+	}
+	wit.Set(values, rands)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		wit.Agg_Prove()
+	}
+}
+
+func benchmarkAggRangeProof_Verify(numberofOutput int, b *testing.B) {
+	wit := new(BulletWitness)
+	values := make([]uint64, numberofOutput)
+	rands := make([]*crypto.Scalar, numberofOutput)
+
+	for i := range values {
+		values[i] = uint64(common.RandInt64())
+		rands[i] = crypto.RandomScalar()
+	}
+	wit.Set(values, rands)
+	proof, _ := wit.Agg_Prove()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		proof.Agg_Verify()
+	}
+}
+
+func benchmarkAggRangeProof_VerifyFast(numberofOutput int, b *testing.B) {
+	wit := new(BulletWitness)
+	values := make([]uint64, numberofOutput)
+	rands := make([]*crypto.Scalar, numberofOutput)
+
+	for i := range values {
+		values[i] = uint64(common.RandInt64())
+		rands[i] = crypto.RandomScalar()
+	}
+	wit.Set(values, rands)
+	proof, _ := wit.Agg_Prove()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		proof.Agg_Verify_Fast()
+	}
+}
+
+func BenchmarkAggregatedRangeWitness_Prove1(b *testing.B) { benchmarkAggRangeProof_Proof(1, b) }
+func BenchmarkAggregatedRangeProof_Verify1(b *testing.B)  { benchmarkAggRangeProof_Verify(1, b) }
+func BenchmarkAggregatedRangeProof_VerifyFast1(b *testing.B) {
+	benchmarkAggRangeProof_VerifyFast(1, b)
+}
+
+func BenchmarkAggregatedRangeWitness_Prove2(b *testing.B) { benchmarkAggRangeProof_Proof(2, b) }
+func BenchmarkAggregatedRangeProof_Verify2(b *testing.B)  { benchmarkAggRangeProof_Verify(2, b) }
+func BenchmarkAggregatedRangeProof_VerifyFast2(b *testing.B) {
+	benchmarkAggRangeProof_VerifyFast(2, b)
+}
+
+func BenchmarkAggregatedRangeWitness_Prove4(b *testing.B) { benchmarkAggRangeProof_Proof(4, b) }
+func BenchmarkAggregatedRangeProof_Verify4(b *testing.B)  { benchmarkAggRangeProof_Verify(4, b) }
+func BenchmarkAggregatedRangeProof_VerifyFast4(b *testing.B) {
+	benchmarkAggRangeProof_VerifyFast(4, b)
+}
+
+func BenchmarkAggregatedRangeWitness_Prove8(b *testing.B) { benchmarkAggRangeProof_Proof(8, b) }
+func BenchmarkAggregatedRangeProof_Verify8(b *testing.B)  { benchmarkAggRangeProof_Verify(8, b) }
+func BenchmarkAggregatedRangeProof_VerifyFast8(b *testing.B) {
+	benchmarkAggRangeProof_VerifyFast(8, b)
+}
+
+func BenchmarkAggregatedRangeWitness_Prove16(b *testing.B) { benchmarkAggRangeProof_Proof(16, b) }
+func BenchmarkAggregatedRangeProof_Verify16(b *testing.B)  { benchmarkAggRangeProof_Verify(16, b) }
+func BenchmarkAggregatedRangeProof_VerifyFast16(b *testing.B) {
+	benchmarkAggRangeProof_VerifyFast(16, b)
+}

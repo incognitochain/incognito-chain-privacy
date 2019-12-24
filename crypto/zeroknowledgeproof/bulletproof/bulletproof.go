@@ -41,6 +41,157 @@ func (wit *BulletWitness) Set(values []uint64, rands []*crypto.Scalar) {
 	}
 }
 
+func (proof BulletProof) ValidateSanity() bool {
+	for i := 0; i < len(proof.comValues); i++ {
+		if !proof.comValues[i].PointValid() {
+			return false
+		}
+	}
+	if !proof.a.PointValid() {
+		return false
+	}
+	if !proof.s.PointValid() {
+		return false
+	}
+	if !proof.t1.PointValid() {
+		return false
+	}
+	if !proof.t2.PointValid() {
+		return false
+	}
+	if !proof.tauX.ScalarValid() {
+		return false
+	}
+	if !proof.tHat.ScalarValid() {
+		return false
+	}
+	if !proof.mu.ScalarValid() {
+		return false
+	}
+
+	return proof.innerProductProof.ValidateSanity()
+}
+
+func (proof *BulletProof) Init() {
+	proof.a = new(crypto.Point).Identity()
+	proof.s = new(crypto.Point).Identity()
+	proof.t1 = new(crypto.Point).Identity()
+	proof.t2 = new(crypto.Point).Identity()
+	proof.tauX = new(crypto.Scalar)
+	proof.tHat = new(crypto.Scalar)
+	proof.mu = new(crypto.Scalar)
+	proof.innerProductProof = new(InnerProductProof)
+}
+
+func (proof BulletProof) IsNil() bool {
+	if proof.a == nil {
+		return true
+	}
+	if proof.s == nil {
+		return true
+	}
+	if proof.t1 == nil {
+		return true
+	}
+	if proof.t2 == nil {
+		return true
+	}
+	if proof.tauX == nil {
+		return true
+	}
+	if proof.tHat == nil {
+		return true
+	}
+	if proof.mu == nil {
+		return true
+	}
+	return proof.innerProductProof == nil
+}
+
+func (proof BulletProof) Bytes() []byte {
+	var res []byte
+
+	if proof.IsNil() {
+		return []byte{}
+	}
+
+	res = append(res, byte(len(proof.comValues)))
+	for i := 0; i < len(proof.comValues); i++ {
+		res = append(res, proof.comValues[i].ToBytesS()...)
+	}
+
+	res = append(res, proof.a.ToBytesS()...)
+	res = append(res, proof.s.ToBytesS()...)
+	res = append(res, proof.t1.ToBytesS()...)
+	res = append(res, proof.t2.ToBytesS()...)
+
+	res = append(res, proof.tauX.ToBytesS()...)
+	res = append(res, proof.tHat.ToBytesS()...)
+	res = append(res, proof.mu.ToBytesS()...)
+	res = append(res, proof.innerProductProof.Bytes()...)
+
+	return res
+
+}
+
+func (proof *BulletProof) SetBytes(bytes []byte) error {
+	if len(bytes) == 0 {
+		return nil
+	}
+
+	lenValues := int(bytes[0])
+	offset := 1
+	var err error
+
+	proof.comValues = make([]*crypto.Point, lenValues)
+	for i := 0; i < lenValues; i++ {
+		proof.comValues[i], err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+		if err != nil {
+			return err
+		}
+		offset += crypto.Ed25519KeySize
+	}
+
+	proof.a, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
+	offset += crypto.Ed25519KeySize
+
+	proof.s, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
+	offset += crypto.Ed25519KeySize
+
+	proof.t1, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
+	offset += crypto.Ed25519KeySize
+
+	proof.t2, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
+	offset += crypto.Ed25519KeySize
+
+	proof.tauX = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	offset += crypto.Ed25519KeySize
+
+	proof.tHat = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	offset += crypto.Ed25519KeySize
+
+	proof.mu = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	offset += crypto.Ed25519KeySize
+
+	proof.innerProductProof = new(InnerProductProof)
+	proof.innerProductProof.SetBytes(bytes[offset:])
+
+	//crypto.Logger.Log.Debugf("AFTER SETBYTES ------------ %v\n", proof.Bytes())
+	return nil
+}
+
 // Single_Prove creates bullet proof with one element in values array
 func (wit *BulletWitness) Single_Prove() (*BulletProof, error) {
 	// check witness

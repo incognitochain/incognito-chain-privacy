@@ -210,6 +210,7 @@ func (wit InnerProductWitness) Prove(aggParam *bulletproofParams) (*InnerProduct
 
 	return proof, nil
 }
+
 func (proof InnerProductProof) Verify(aggParam *bulletproofParams) bool {
 	//var aggParam = newBulletproofParams(1)
 	p := new(crypto.Point)
