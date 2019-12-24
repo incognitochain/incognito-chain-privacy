@@ -230,6 +230,11 @@ func (p *Point) AddPedersen(a *Scalar, A *Point, b *Scalar, B *Point) *Point {
 	return p
 }
 
+// AddPedersenWithBasePoint returns aG + bH
+func (p *Point) AddPedersenWithBasePoint(a *Scalar, b *Scalar) *Point {
+	return p.AddPedersen(a, G, b, H)
+}
+
 func (p *Point) AddPedersenCached(a *Scalar, APreCompute [8]C25519.CachedGroupElement, b *Scalar, BPreCompute [8]C25519.CachedGroupElement) *Point {
 	if p == nil {
 		p = new(Point)
