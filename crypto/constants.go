@@ -8,6 +8,8 @@ import (
 const (
 	Ed25519KeySize = 32
 	AESKeySize     = 32
+	HashSize          = 32 // bytes
+	MaxHashStringSize = HashSize * 2
 
 	CStringBulletProof = "bulletproof"
 	CStringBasePoint   = "basepoint"
