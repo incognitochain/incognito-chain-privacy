@@ -601,19 +601,8 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 		return nil, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
-	aggParam := new(bulletproofParams)
-	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
-	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
-	aggParam.u = BulletParam.u
-	csByteH := []byte{}
-	csByteG := []byte{}
-	for i := 0; i < len(aggParam.g); i++ {
-		csByteG = append(csByteG, aggParam.g[i].ToBytesS()...)
-		csByteH = append(csByteH, aggParam.h[i].ToBytesS()...)
-	}
-	aggParam.cs = append(aggParam.cs, csByteG...)
-	aggParam.cs = append(aggParam.cs, csByteH...)
-	aggParam.cs = append(aggParam.cs, aggParam.u.ToBytesS()...)
+
+	aggParam := getBulletproofParams(numValuePad)
 
 	values := make([]uint64, numValuePad)
 	rands := make([]*crypto.Scalar, numValuePad)
@@ -854,19 +843,7 @@ func (proof BulletProof) Agg_Verify() (bool, error) {
 		return false, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
-	aggParam := new(bulletproofParams)
-	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
-	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
-	aggParam.u = BulletParam.u
-	csByteH := []byte{}
-	csByteG := []byte{}
-	for i := 0; i < len(aggParam.g); i++ {
-		csByteG = append(csByteG, aggParam.g[i].ToBytesS()...)
-		csByteH = append(csByteH, aggParam.h[i].ToBytesS()...)
-	}
-	aggParam.cs = append(aggParam.cs, csByteG...)
-	aggParam.cs = append(aggParam.cs, csByteH...)
-	aggParam.cs = append(aggParam.cs, aggParam.u.ToBytesS()...)
+	aggParam := getBulletproofParams(numValuePad)
 
 	tmpcmsValue := proof.comValues
 	for i := numValue; i < numValuePad; i++ {
@@ -957,19 +934,7 @@ func (proof BulletProof) Agg_Verify_Fast() (bool, error) {
 		return false, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
-	aggParam := new(bulletproofParams)
-	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
-	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
-	aggParam.u = BulletParam.u
-	csByteH := []byte{}
-	csByteG := []byte{}
-	for i := 0; i < len(aggParam.g); i++ {
-		csByteG = append(csByteG, aggParam.g[i].ToBytesS()...)
-		csByteH = append(csByteH, aggParam.h[i].ToBytesS()...)
-	}
-	aggParam.cs = append(aggParam.cs, csByteG...)
-	aggParam.cs = append(aggParam.cs, csByteH...)
-	aggParam.cs = append(aggParam.cs, aggParam.u.ToBytesS()...)
+	aggParam := getBulletproofParams(numValuePad)
 
 	tmpcmsValue := proof.comValues
 
