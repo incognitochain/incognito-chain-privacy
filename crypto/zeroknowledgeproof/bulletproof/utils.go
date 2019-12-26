@@ -7,11 +7,10 @@ import (
 )
 
 const (
-	maxExp               = 64
-	numOutputParam       = 32
-	maxOutputNumber      = 32
-	numCommitValue       = 5
-	maxOutputNumberParam = 256
+	maxExp              = 64
+	nOutPreComputeParam = 32
+	maxNOut             = 32
+	maxNOutParam        = 256
 )
 
 // bulletproofParams includes all generator for aggregated range proof
@@ -22,32 +21,82 @@ type bulletproofParams struct {
 	cs []byte
 }
 
-var AggParam = newBulletproofParams(numOutputParam)
+var BulletParam = newBulletproofParams(nOutPreComputeParam)
+var SingleBulletParam = newBulletproofParams(1)
 
 func newBulletproofParams(m int) *bulletproofParams {
-	gen := new(bulletproofParams)
-	gen.cs = []byte{}
+	param := new(bulletproofParams)
+	param.cs = []byte{}
 	capacity := maxExp * m // fixed value
-	gen.g = make([]*crypto.Point, capacity)
-	gen.h = make([]*crypto.Point, capacity)
+	maxCapacity := maxNOutParam * maxExp
+	param.g = make([]*crypto.Point, capacity)
+	param.h = make([]*crypto.Point, capacity)
 	csByteH := []byte{}
 	csByteG := []byte{}
+
 	for i := 0; i < capacity; i++ {
-		gen.g[i] = crypto.HashToPointFromIndex(int64(numCommitValue + i), crypto.CStringBulletProof)
-		gen.h[i] = crypto.HashToPointFromIndex(int64(numCommitValue + i + maxOutputNumberParam*maxExp), crypto.CStringBulletProof)
-		csByteG = append(csByteG, gen.g[i].ToBytesS()...)
-		csByteH = append(csByteH, gen.h[i].ToBytesS()...)
+		param.g[i] = crypto.HashToPointFromIndex(int64(i), crypto.CStringBulletProof)
+		param.h[i] = crypto.HashToPointFromIndex(int64(i + maxCapacity), crypto.CStringBulletProof)
+		csByteG = append(csByteG, param.g[i].ToBytesS()...)
+		csByteH = append(csByteH, param.h[i].ToBytesS()...)
 	}
 
-	gen.u = new(crypto.Point)
-	gen.u = crypto.HashToPointFromIndex(int64(numCommitValue + 2*maxOutputNumberParam*maxExp), crypto.CStringBulletProof)
+	param.u = new(crypto.Point)
+	param.u = crypto.HashToPointFromIndex(int64(2 * maxCapacity), crypto.CStringBulletProof)
 
-	gen.cs = append(gen.cs, csByteG...)
-	gen.cs = append(gen.cs, csByteH...)
-	gen.cs = append(gen.cs, gen.u.ToBytesS()...)
+	param.cs = append(param.cs, csByteG...)
+	param.cs = append(param.cs, csByteH...)
+	param.cs = append(param.cs, param.u.ToBytesS()...)
+	param.cs = crypto.HashToScalar(param.cs).ToBytesS()
 
-	return gen
+	return param
 }
+
+func getBulletproofParams(m int) *bulletproofParams {
+	newParam := new(bulletproofParams)
+	newParam.u = BulletParam.u
+	newParam.cs = BulletParam.cs
+	newParam.g = make([]*crypto.Point, m * maxExp)
+	newParam.h = make([]*crypto.Point, m * maxExp)
+
+	for i := range newParam.g {
+		newParam.g[i] = new(crypto.Point).Set(BulletParam.g[i])
+		newParam.h[i] = new(crypto.Point).Set(BulletParam.h[i])
+	}
+
+	return newParam
+}
+
+func setBulletproofParams(g []*crypto.Point, h []*crypto.Point) (*bulletproofParams, error) {
+	if len(g) != len(h) {
+		return nil, errors.New("invalid len param points")
+	}
+	newParam := new(bulletproofParams)
+	newParam.u = BulletParam.u
+
+	newParam.g = make([]*crypto.Point, len(g))
+	newParam.h = make([]*crypto.Point, len(h))
+
+	csBytes := []byte{}
+	gBytes := []byte{}
+	hBytes := []byte{}
+
+	for i := range newParam.g {
+		newParam.g[i] = new(crypto.Point).Set(BulletParam.g[i])
+		newParam.h[i] = new(crypto.Point).Set(BulletParam.h[i])
+
+		gBytes = append(gBytes, newParam.g[i].ToBytesS()...)
+		hBytes = append(hBytes, newParam.h[i].ToBytesS()...)
+	}
+
+	csBytes = append(csBytes, gBytes...)
+	csBytes = append(csBytes, hBytes...)
+	csBytes = append(csBytes, newParam.u.ToBytesS()...)
+	newParam.cs = crypto.HashToScalar(csBytes).ToBytesS()
+
+	return newParam, nil
+}
+
 
 func generateChallenge(values [][]byte) *crypto.Scalar {
 	bytes := []byte{}

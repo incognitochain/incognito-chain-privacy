@@ -61,20 +61,18 @@ func TestMultiScalarMultKey(t *testing.T) {
 }
 
 func BenchmarkMultiScalarMultKey(b *testing.B) {
-	len := 64
+	len := 64*32
 	scalarLs := make([]*C25519.Key, len)
 	pointLs := make([]*C25519.Key, len)
 
 	for j := 0; j < len; j++ {
 		scalarLs[j] = C25519.RandomScalar()
 		pointLs[j] = C25519.RandomPubKey()
-
 	}
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-
 		MultiScalarMultKey(pointLs, scalarLs)
 	}
 }

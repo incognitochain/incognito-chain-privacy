@@ -199,9 +199,397 @@ func (wit *BulletWitness) Single_Prove() (*BulletProof, error) {
 		return nil, errors.New("invalid witness of bullet protocol")
 	}
 
-	// todo:
+	n := maxExp
 
-	return nil, nil
+	value := wit.values[0]
+	valueInt := new(crypto.Scalar).FromUint64(value)
+	rand := wit.rands[0]
+
+	// compute V = G^v * H^r
+	comValue := new(crypto.Point).AddPedersenWithBasePoint(valueInt, rand)
+
+	// Convert value to binary array aL
+	// aR = aL - 1
+	// PAPER LINES 41 - 42
+	aL := crypto.ConvertUint64ToBinary(value, n)
+	aR := make([]*crypto.Scalar, n)
+	for i := 0; i < n; i++ {
+		aR[i] = new(crypto.Scalar).Sub(aL[i], new(crypto.Scalar).FromUint64(1))
+	}
+
+	// PAPER LINES 43 - 44
+
+	// generate random alpha
+	alpha := crypto.RandomScalar()
+
+	// Commitment to aL, aR: A = h^alpha * G^aL * H^aR
+	A, err := encodeVectors(aL, aR, SingleBulletParam.g, SingleBulletParam.h)
+	if err != nil {
+		return nil, err
+	}
+	A.Add(A, new(crypto.Point).ScalarMult(crypto.H, alpha))
+
+
+	// PAPER LINES 45 - 47
+	// generate random blinding vectors sL, sR
+	sL := make([]*crypto.Scalar, n)
+	sR := make([]*crypto.Scalar, n)
+	for i := range sL {
+		sL[i] = crypto.RandomScalar()
+		sR[i] = crypto.RandomScalar()
+	}
+	// generate random rho
+	rho := crypto.RandomScalar()
+
+	// commitment to sL, sR
+	S, err := encodeVectors(sL, sR, SingleBulletParam.g, SingleBulletParam.h)
+	if err != nil {
+		return nil, err
+	}
+	S.Add(S, new(crypto.Point).ScalarMult(crypto.H, rho))
+
+	// PAPER LINES 48 - 50
+	// challenge y = H(csHash || comValue || A || S)
+	// challenge z = H(csHash || comValue || A || S || y)
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS(), y.ToBytesS()})
+
+	zNeg := new(crypto.Scalar).Sub(new(crypto.Scalar).FromUint64(0), z)
+	zSquare := new(crypto.Scalar).Mul(z, z)
+	zCube := new(crypto.Scalar).Mul(zSquare, z)
+
+	// calculate polynomial l(X) and r(X)
+
+	// l(X) = (aL - z*1^n) + sL*X = l0 + l1*X
+	yVector := powerVector(y, n)
+	twoNumber := new(crypto.Scalar).FromUint64(2)
+	twoVector := powerVector(twoNumber, n)
+
+	l0 := vectorAddScalar(aL, zNeg)
+	l1 := sL
+
+	// r(X) = y^n hada (aR + z*1^n + sR*X) + z^2 * 2^n = y^n hada (aR + z*1^n) + z^2 * 2^n  + (y^n hada * sR) * X = r0 + r1*X
+	// r00 = y^n hada (aR + z*1^n) + z^2 * 2^n
+	r00, err := hadamardProduct(yVector, vectorAddScalar(aR, z))
+	if err != nil {
+		return nil, err
+	}
+
+	// r01 = z^2 * 2^n
+	r01 := vectorMulScalar(twoVector, zSquare)
+
+	r0, err := vectorAdd(r00, r01)
+	if err != nil {
+		return nil, err
+	}
+
+	// r1 = y^n hada * sR
+	r1, err := hadamardProduct(yVector, sR)
+	if err != nil {
+		return nil, err
+	}
+
+	// t(X) = <l(X), r(X)> = t0 + t1*X + t2*X^2
+
+	// calculate t0 = v*z^2 + delta(y, z)
+	// cal delta(y,z) = (z-z^2)* <1^n, y^n> - z^3* <1^n, 2^n>
+	deltaYZ := new(crypto.Scalar).Sub(z, zSquare)
+
+	// innerProduct1 = <1^n, y^n>
+	innerProduct1 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct1.Add(innerProduct1, yVector[i])
+	}
+	//innerProduct1 := innerProduct()
+
+	deltaYZ.Mul(deltaYZ, innerProduct1)
+
+	// innerProduct2 = <1^n, 2^n>
+	innerProduct2 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct2.Add(innerProduct2, twoVector[i])
+	}
+
+	deltaYZ.Sub(deltaYZ, new(crypto.Scalar).Mul(zCube, innerProduct2))
+
+	// t1 = <l1, r0> + <l0, r1>
+	innerProduct3, err := innerProduct(l1, r0)
+	if err != nil {
+		return nil, err
+	}
+	innerProduct4, err := innerProduct(l0, r1)
+	if err != nil {
+		return nil, err
+	}
+	t1 := new(crypto.Scalar).Add(innerProduct3, innerProduct4)
+
+	// t2 = <l1, r1>
+	t2, err := innerProduct(l1, r1)
+	if err != nil {
+		return nil, err
+	}
+
+	// PAPER LINES 51 - 53
+	// commitment to t1, t2
+	tau1 := crypto.RandomScalar()
+	tau2 := crypto.RandomScalar()
+
+	T1 := new(crypto.Point).AddPedersenWithBasePoint(t1, tau1)
+	T2 := new(crypto.Point).AddPedersenWithBasePoint(t2, tau2)
+
+	// PAPER LINES 54 - 56
+	// generate challenge x = H(csHash || comValue || A || S || T1 || T2)
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS(), T1.ToBytesS(), T2.ToBytesS()})
+	xSquare := new(crypto.Scalar).Mul(x, x)
+
+	// PAPER LINES 58 - 62
+	// lVector = aL - z*1^n + sL*x
+	lVector, err := vectorAdd(vectorAddScalar(aL, zNeg), vectorMulScalar(sL, x))
+	if err != nil {
+		return nil, err
+	}
+
+	// rVector = y^n hada (aR + z*1^n + sR*x) + z^2*2^n
+	tmpVector, err := vectorAdd(vectorAddScalar(aR, z), vectorMulScalar(sR, x))
+	if err != nil {
+		return nil, err
+	}
+	rVector, err := hadamardProduct(yVector, tmpVector)
+	if err != nil {
+		return nil, err
+	}
+	rVector, err = vectorAdd(rVector, vectorMulScalar(twoVector, zSquare))
+	if err != nil {
+		return nil, err
+	}
+
+	// tHat = <lVector, rVector>
+	tHat, err := innerProduct(lVector, rVector)
+	if err != nil {
+		return nil, err
+	}
+
+	// blinding value for tHat: tauX = tau2*x^2 + tau1*x + z^2*rand
+	tauX :=  new(crypto.Scalar).Add(new(crypto.Scalar).Mul(tau2, xSquare), new(crypto.Scalar).Mul(tau1, x))
+	tauX.Add(tauX, new(crypto.Scalar).Mul(zSquare, rand))
+
+	// alpha, rho blind A, S
+	// mu = alpha + rho*x
+	mu := new(crypto.Scalar).Add(alpha, new(crypto.Scalar).Mul(rho, x))
+
+	// instead of sending left vector and right vector, we use inner sum argument to reduce proof size from 2*n to 2(log2(n)) + 2
+
+	// calculate HPrime = H^(y^(-n))
+	HPrime := make([]*crypto.Point, n)
+	yInverse := new(crypto.Scalar).Invert(y)
+	expYInverse := new(crypto.Scalar).FromUint64(1)
+	for i := 0; i < n; i++ {
+		HPrime[i] = new(crypto.Point).ScalarMult(SingleBulletParam.h[i], expYInverse)
+		expYInverse.Mul(expYInverse, yInverse)
+	}
+
+	newParam, err := setBulletproofParams(SingleBulletParam.g, HPrime)
+	if err != nil {
+		return nil, err
+	}
+
+	innerProductWit := new(InnerProductWitness)
+	innerProductWit.a = lVector
+	innerProductWit.b = rVector
+	innerProductWit.p, err = encodeVectors(lVector, rVector, newParam.g, newParam.h)
+	if err != nil {
+		return nil, err
+	}
+	innerProductWit.p = innerProductWit.p.Add(innerProductWit.p, new(crypto.Point).ScalarMult(SingleBulletParam.u, tHat))
+
+	innerProductProof, err := innerProductWit.Prove(newParam)
+	if err != nil {
+		return nil, err
+	}
+
+	proof := BulletProof{
+		comValues: []*crypto.Point{comValue},
+		a: A,
+		s: S,
+		t1: T1,
+		t2: T2,
+		tauX: tauX,
+		tHat: tHat,
+		mu: mu,
+		innerProductProof: innerProductProof,
+	}
+
+	return &proof, nil
+}
+
+func (proof BulletProof) Single_Verify() (bool, error) {
+	numValue := len(proof.comValues)
+
+	if numValue != 1 {
+		return false, errors.New("number of output coins must be equal 1")
+	}
+
+	n := maxExp
+	comValue := proof.comValues[0]
+
+	twoNumber := new(crypto.Scalar).FromUint64(2)
+	twoVector := powerVector(twoNumber, n)
+
+	// recalculate challenge y, z
+	// challenge y = H(csHash || comValue || A || S)
+	// challenge z = H(csHash || comValue || A || S || y)
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+
+	zSquare := new(crypto.Scalar).Mul(z, z)
+	zCube := new(crypto.Scalar).Mul(zSquare, z)
+
+	// recalculate challenge x = H(csHash || comValue || A || S || T1 || T2)
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	xSquare := new(crypto.Scalar).Mul(x, x)
+
+	yVector := powerVector(y, n)
+
+	// PAPER LINE 65
+	// check the first statement
+	// g^tHat * h^tauX == comValue^(z^2) * g^delta(y, z) * T1^x * T2^(x^2)
+
+	// cal delta(y,z) = (z-z^2)* <1^n, y^n> - z^3* <1^n, 2^n>
+	deltaYZ := new(crypto.Scalar).Sub(z, zSquare)
+
+	// innerProduct1 = <1^n, y^n>
+	innerProduct1 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct1.Add(innerProduct1, yVector[i])
+	}
+
+	deltaYZ.Mul(deltaYZ, innerProduct1)
+
+	// innerProduct2 = <1^n, 2^n>
+	innerProduct2 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct2.Add(innerProduct2, twoVector[i])
+	}
+
+	deltaYZ.Sub(deltaYZ, new(crypto.Scalar).Mul(zCube, innerProduct2))
+
+	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+
+	right1 := new(crypto.Point).Add(new(crypto.Point).ScalarMult(comValue, zSquare), new(crypto.Point).ScalarMultBase(deltaYZ))
+	right1.Add(right1, new(crypto.Point).AddPedersen(x, proof.t1, xSquare, proof.t2))
+
+	if !crypto.IsPointEqual(left1, right1) {
+		fmt.Printf("verify aggregated range proof statement 1 failed")
+		return false, errors.New("verify aggregated range proof statement 1 failed")
+	}
+
+	// PAPER LINE 64
+	// calculate HPrime = H^(y^(-n))
+	HPrime := make([]*crypto.Point, n)
+	yInverse := new(crypto.Scalar).Invert(y)
+	expYInverse := new(crypto.Scalar).FromUint64(1)
+	for i := 0; i < n; i++ {
+		HPrime[i] = new(crypto.Point).ScalarMult(SingleBulletParam.h[i], expYInverse)
+		expYInverse.Mul(expYInverse, yInverse)
+	}
+
+	newParam, err := setBulletproofParams(SingleBulletParam.g, HPrime)
+	if err != nil {
+		return false, err
+	}
+
+	innerProductArgValid := proof.innerProductProof.Verify(newParam)
+	if !innerProductArgValid {
+		fmt.Printf("verify aggregated range proof statement 2 failed")
+		return false, errors.New("verify aggregated range proof statement 2 failed")
+	}
+
+	return true, nil
+}
+
+func (proof BulletProof) Single_Verify_Fast() (bool, error) {
+	numValue := len(proof.comValues)
+
+	if numValue != 1 {
+		return false, errors.New("number of output coins must be equal 1")
+	}
+
+	n := maxExp
+	comValue := proof.comValues[0]
+
+	twoNumber := new(crypto.Scalar).FromUint64(2)
+	twoVector := powerVector(twoNumber, n)
+
+	// recalculate challenge y, z
+	// challenge y = H(csHash || comValue || A || S)
+	// challenge z = H(csHash || comValue || A || S || y)
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+
+	zSquare := new(crypto.Scalar).Mul(z, z)
+	zCube := new(crypto.Scalar).Mul(zSquare, z)
+
+	// recalculate challenge x = H(csHash || comValue || A || S || T1 || T2)
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	xSquare := new(crypto.Scalar).Mul(x, x)
+
+	yVector := powerVector(y, n)
+
+	// PAPER LINE 65
+	// check the first statement
+	// g^tHat * h^tauX == comValue^(z^2) * g^delta(y, z) * T1^x * T2^(x^2)
+
+	// cal delta(y,z) = (z-z^2)* <1^n, y^n> - z^3* <1^n, 2^n>
+	deltaYZ := new(crypto.Scalar).Sub(z, zSquare)
+
+	// innerProduct1 = <1^n, y^n>
+	innerProduct1 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct1.Add(innerProduct1, yVector[i])
+	}
+
+	deltaYZ.Mul(deltaYZ, innerProduct1)
+
+	// innerProduct2 = <1^n, 2^n>
+	innerProduct2 := new(crypto.Scalar).FromUint64(0)
+	for i := 0; i < n; i++ {
+		innerProduct2.Add(innerProduct2, twoVector[i])
+	}
+
+	deltaYZ.Sub(deltaYZ, new(crypto.Scalar).Mul(zCube, innerProduct2))
+
+	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+
+	right1 := new(crypto.Point).Add(new(crypto.Point).ScalarMult(comValue, zSquare), new(crypto.Point).ScalarMultBase(deltaYZ))
+	right1.Add(right1, new(crypto.Point).AddPedersen(x, proof.t1, xSquare, proof.t2))
+
+	if !crypto.IsPointEqual(left1, right1) {
+		fmt.Printf("verify aggregated range proof statement 1 failed")
+		return false, errors.New("verify aggregated range proof statement 1 failed")
+	}
+
+	// PAPER LINE 64
+	// calculate HPrime = H^(y^(-n))
+	HPrime := make([]*crypto.Point, n)
+	yInverse := new(crypto.Scalar).Invert(y)
+	expYInverse := new(crypto.Scalar).FromUint64(1)
+	for i := 0; i < n; i++ {
+		HPrime[i] = new(crypto.Point).ScalarMult(SingleBulletParam.h[i], expYInverse)
+		expYInverse.Mul(expYInverse, yInverse)
+	}
+
+	newParam, err := setBulletproofParams(SingleBulletParam.g, HPrime)
+	if err != nil {
+		return false, err
+	}
+
+	innerProductArgValid := proof.innerProductProof.Verify_Fast(newParam)
+	if !innerProductArgValid {
+		fmt.Printf("verify aggregated range proof statement 2 failed")
+		return false, errors.New("verify aggregated range proof statement 2 failed")
+	}
+
+	return true, nil
 }
 
 // Single_Prove creates bullet proof with multi elements in values array
@@ -209,14 +597,14 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 	proof := new(BulletProof)
 
 	numValue := len(wit.values)
-	if numValue > maxOutputNumber {
-		return nil, errors.New("Must less than maxOutputNumber")
+	if numValue > maxNOut {
+		return nil, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
 	aggParam := new(bulletproofParams)
-	aggParam.g = AggParam.g[0 : numValuePad*maxExp]
-	aggParam.h = AggParam.h[0 : numValuePad*maxExp]
-	aggParam.u = AggParam.u
+	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
+	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
+	aggParam.u = BulletParam.u
 	csByteH := []byte{}
 	csByteG := []byte{}
 	for i := 0; i < len(aggParam.g); i++ {
@@ -462,14 +850,14 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 
 func (proof BulletProof) Agg_Verify() (bool, error) {
 	numValue := len(proof.comValues)
-	if numValue > maxOutputNumber {
-		return false, errors.New("Must less than maxOutputNumber")
+	if numValue > maxNOut {
+		return false, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
 	aggParam := new(bulletproofParams)
-	aggParam.g = AggParam.g[0 : numValuePad*maxExp]
-	aggParam.h = AggParam.h[0 : numValuePad*maxExp]
-	aggParam.u = AggParam.u
+	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
+	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
+	aggParam.u = BulletParam.u
 	csByteH := []byte{}
 	csByteG := []byte{}
 	for i := 0; i < len(aggParam.g); i++ {
@@ -565,14 +953,14 @@ func (proof BulletProof) Agg_Verify() (bool, error) {
 
 func (proof BulletProof) Agg_Verify_Fast() (bool, error) {
 	numValue := len(proof.comValues)
-	if numValue > maxOutputNumber {
-		return false, errors.New("Must less than maxOutputNumber")
+	if numValue > maxNOut {
+		return false, errors.New("Must less than maxNOut")
 	}
 	numValuePad := pad(numValue)
 	aggParam := new(bulletproofParams)
-	aggParam.g = AggParam.g[0 : numValuePad*maxExp]
-	aggParam.h = AggParam.h[0 : numValuePad*maxExp]
-	aggParam.u = AggParam.u
+	aggParam.g = BulletParam.g[0 : numValuePad*maxExp]
+	aggParam.h = BulletParam.h[0 : numValuePad*maxExp]
+	aggParam.u = BulletParam.u
 	csByteH := []byte{}
 	csByteG := []byte{}
 	for i := 0; i < len(aggParam.g); i++ {
