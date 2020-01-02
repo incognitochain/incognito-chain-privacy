@@ -31,7 +31,7 @@ type Mlsag_Proof struct {
 }
 
 func key_image(private *crypto.Scalar, public *crypto.Point) *crypto.Point {
-	hashPoint := crypto.HashToPoint(public.ToBytesS())
+	hashPoint := crypto.HashToPoint(public.ToBytes())
 	res := new(crypto.Point).ScalarMult(hashPoint, private)
 	return res
 }
@@ -42,7 +42,7 @@ func (wit Mlsag_Witness) Mlsag_Prove() (*Mlsag_Proof, error) {
 	m := len(wit.privateKey) // number of columns, number of private keys
 	index := wit.index       // prover knows private keys of column at index
 	dsCols := wit.dsCols
-	messageBytes := wit.message.ToBytesS()
+	messageBytes := wit.message.ToBytes()
 
 	// validate witness
 	if m < 2 {
@@ -77,7 +77,7 @@ func (wit Mlsag_Witness) Mlsag_Prove() (*Mlsag_Proof, error) {
 		alpha[j] = crypto.RandomScalar()
 		aG = new(crypto.Point).ScalarMultBase(alpha[j])
 
-		Hi = crypto.HashToPoint(wit.publicKey[index][j].ToBytesS())
+		Hi = crypto.HashToPoint(wit.publicKey[index][j].ToBytes())
 		aHP = new(crypto.Point).ScalarMult(Hi, alpha[j])
 
 		toHashBytes = crypto.AppendPointsToBytesArray(toHashBytes, []*crypto.Point{wit.publicKey[index][j], aG, aHP})
@@ -117,7 +117,7 @@ func (wit Mlsag_Witness) Mlsag_Prove() (*Mlsag_Proof, error) {
 
 		for j := 0; j < dsCols; j++ {
 			L = new(crypto.Point).AddPedersen(r[i][j], crypto.G, c_old, wit.publicKey[i][j])
-			Hi = crypto.HashToPoint(wit.publicKey[i][j].ToBytesS())
+			Hi = crypto.HashToPoint(wit.publicKey[i][j].ToBytes())
 			R = new(crypto.Point).AddPedersen(r[i][j], Hi, c_old, keyImage[j])
 
 			toHashBytes = crypto.AppendPointsToBytesArray(toHashBytes, []*crypto.Point{wit.publicKey[index][j], L, R})
@@ -162,7 +162,7 @@ func (proof Mlsag_Proof) Mlsag_Verify() (bool, error) {
 	n := RingSize                // number of rows
 	m := len(proof.publicKey[0]) // number of columns
 	dsCols := proof.dsCols
-	messageBytes := proof.message.ToBytesS()
+	messageBytes := proof.message.ToBytes()
 
 	//validate proof
 	if m < 2 {
@@ -214,7 +214,7 @@ func (proof Mlsag_Proof) Mlsag_Verify() (bool, error) {
 
 		for j := 0; j < dsCols; j++ {
 			L = new(crypto.Point).AddPedersen(proof.r[i][j], crypto.G, c_old, proof.publicKey[i][j])
-			Hi = crypto.HashToPoint(proof.publicKey[i][j].ToBytesS())
+			Hi = crypto.HashToPoint(proof.publicKey[i][j].ToBytes())
 			R = new(crypto.Point).AddPedersen(proof.r[i][j], Hi, c_old, proof.keyImage[j])
 
 			toHashBytes = crypto.AppendPointsToBytesArray(toHashBytes, []*crypto.Point{proof.publicKey[i][j], L, R})
@@ -230,7 +230,7 @@ func (proof Mlsag_Proof) Mlsag_Verify() (bool, error) {
 		c_old.Set(c)
 	}
 
-	res := crypto.IsScalarEqual(c, proof.c0)
+	res := crypto.CompareScalar(c, proof.c0) == 0
 
 	//verifyTime := time.Since(startVerify)
 	//fmt.Printf("verifyTime: %v - len private key %v: \n", verifyTime, m)

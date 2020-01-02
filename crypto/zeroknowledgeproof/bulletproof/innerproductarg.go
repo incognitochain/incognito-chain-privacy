@@ -55,16 +55,16 @@ func (proof InnerProductProof) Bytes() []byte {
 
 	res = append(res, byte(len(proof.l)))
 	for _, l := range proof.l {
-		res = append(res, l.ToBytesS()...)
+		res = append(res, l.ToBytes()...)
 	}
 
 	for _, r := range proof.r {
-		res = append(res, r.ToBytesS()...)
+		res = append(res, r.ToBytes()...)
 	}
 
-	res = append(res, proof.a.ToBytesS()...)
-	res = append(res, proof.b.ToBytesS()...)
-	res = append(res, proof.p.ToBytesS()...)
+	res = append(res, proof.a.ToBytes()...)
+	res = append(res, proof.b.ToBytes()...)
+	res = append(res, proof.p.ToBytes()...)
 
 	return res
 }
@@ -80,7 +80,7 @@ func (proof *InnerProductProof) SetBytes(bytes []byte) error {
 
 	proof.l = make([]*crypto.Point, lenLArray)
 	for i := 0; i < lenLArray; i++ {
-		proof.l[i], err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+		proof.l[i], err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 		if err != nil {
 			return err
 		}
@@ -89,20 +89,26 @@ func (proof *InnerProductProof) SetBytes(bytes []byte) error {
 
 	proof.r = make([]*crypto.Point, lenLArray)
 	for i := 0; i < lenLArray; i++ {
-		proof.r[i], err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+		proof.r[i], err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 		if err != nil {
 			return err
 		}
 		offset += crypto.Ed25519KeySize
 	}
 
-	proof.a = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.a, err = new(crypto.Scalar).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
 	offset += crypto.Ed25519KeySize
 
-	proof.b = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.b, err = new(crypto.Scalar).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
 	offset += crypto.Ed25519KeySize
 
-	proof.p, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.p, err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 	if err != nil {
 		return err
 	}
@@ -166,8 +172,8 @@ func (wit InnerProductWitness) Prove(aggParam *bulletproofParams) (*InnerProduct
 		proof.r = append(proof.r, R)
 
 		// calculate challenge x = hash(G || H || u || x || l || r)
-		x := generateChallenge([][]byte{aggParam.cs, p.ToBytesS(), L.ToBytesS(), R.ToBytesS()})
-		//x := generateChallengeOld(aggParam, [][]byte{p.ToBytesS(), L.ToBytesS(), R.ToBytesS()})
+		x := generateChallenge([][]byte{aggParam.cs, p.ToBytes(), L.ToBytes(), R.ToBytes()})
+		//x := generateChallengeOld(aggParam, [][]byte{p.ToBytes(), L.ToBytes(), R.ToBytes()})
 		xInverse := new(crypto.Scalar).Invert(x)
 		xSquare := new(crypto.Scalar).Mul(x, x)
 		xSquareInverse := new(crypto.Scalar).Mul(xInverse, xInverse)
@@ -227,7 +233,7 @@ func (proof InnerProductProof) Verify(aggParam *bulletproofParams) bool {
 	for i := range proof.l {
 		nPrime := n / 2
 		// calculate challenge x = hash(G || H || u || p || x || l || r)
-		x := generateChallenge([][]byte{aggParam.cs, p.ToBytesS(), proof.l[i].ToBytesS(), proof.r[i].ToBytesS()})
+		x := generateChallenge([][]byte{aggParam.cs, p.ToBytes(), proof.l[i].ToBytes(), proof.r[i].ToBytes()})
 		xInverse := new(crypto.Scalar).Invert(x)
 		xSquare := new(crypto.Scalar).Mul(x, x)
 		xSquareInverse := new(crypto.Scalar).Mul(xInverse, xInverse)
@@ -289,7 +295,7 @@ func (proof InnerProductProof) Verify_Fast(aggParam *bulletproofParams) bool {
 
 	for i := range proof.l {
 		// calculate challenge x = hash(hash(G || H || u || p) || x || l || r)
-		xList[i] = generateChallenge([][]byte{aggParam.cs, p.ToBytesS(), proof.l[i].ToBytesS(), proof.r[i].ToBytesS()})
+		xList[i] = generateChallenge([][]byte{aggParam.cs, p.ToBytes(), proof.l[i].ToBytes(), proof.r[i].ToBytes()})
 		xInverseList[i] = new(crypto.Scalar).Invert(xList[i])
 		xSquareList[i] = new(crypto.Scalar).Mul(xList[i], xList[i])
 		xInverseSquare_List[i] = new(crypto.Scalar).Mul(xInverseList[i], xInverseList[i])

@@ -3,7 +3,7 @@ package crypto
 import (
 	"crypto/subtle"
 	"fmt"
-	C25519 "github.com/deroproject/derosuite/crypto"
+	C25519 "github.com/incognitochain/incognito-chain-privacy/crypto/curve25519"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -11,7 +11,7 @@ import (
 func TestCompare(t *testing.T) {
 	a := new(Scalar).FromUint64(1001)
 	b := new(Scalar).FromUint64(1001)
-	fmt.Println(Compare(a, b))
+	fmt.Println(CompareScalar(a, b))
 }
 
 func TestCheckDuplicateScalarArray(t *testing.T) {
@@ -141,7 +141,8 @@ func TestScalar_Invert(t *testing.T) {
 		inv_a := new(Scalar).Invert(a)
 
 		res := new(Scalar).Mul(a, inv_a)
-		ok := res.IsOne()
+		oneSc := new(Scalar).FromUint64(1)
+		ok := CompareScalar(res, oneSc) == 0
 		if !ok {
 			t.Fatalf("expected Scalar Invert correct !")
 		}
@@ -150,4 +151,24 @@ func TestScalar_Invert(t *testing.T) {
 	b := new(Scalar).FromUint64(1)
 	bInverse := b.Invert(b)
 	fmt.Printf("bInverse %v\n", bInverse)
+}
+
+//func BenchmarkIsScalarEqual(b *testing.B){
+//	a := RandomScalar()
+//	c := new(Scalar).Set(a)
+//
+//	b.ResetTimer()
+//	for i:=0; i<b.N; i++{
+//		IsScalarEqual(a, c)
+//	}
+//}
+
+func BenchmarkCompare(b *testing.B){
+	a := RandomScalar()
+	c := new(Scalar).Set(a)
+
+	b.ResetTimer()
+	for i:=0; i<b.N; i++{
+		CompareScalar(a, c)
+	}
 }

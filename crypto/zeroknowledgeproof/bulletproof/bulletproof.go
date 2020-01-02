@@ -117,17 +117,17 @@ func (proof BulletProof) Bytes() []byte {
 
 	res = append(res, byte(len(proof.comValues)))
 	for i := 0; i < len(proof.comValues); i++ {
-		res = append(res, proof.comValues[i].ToBytesS()...)
+		res = append(res, proof.comValues[i].ToBytes()...)
 	}
 
-	res = append(res, proof.a.ToBytesS()...)
-	res = append(res, proof.s.ToBytesS()...)
-	res = append(res, proof.t1.ToBytesS()...)
-	res = append(res, proof.t2.ToBytesS()...)
+	res = append(res, proof.a.ToBytes()...)
+	res = append(res, proof.s.ToBytes()...)
+	res = append(res, proof.t1.ToBytes()...)
+	res = append(res, proof.t2.ToBytes()...)
 
-	res = append(res, proof.tauX.ToBytesS()...)
-	res = append(res, proof.tHat.ToBytesS()...)
-	res = append(res, proof.mu.ToBytesS()...)
+	res = append(res, proof.tauX.ToBytes()...)
+	res = append(res, proof.tHat.ToBytes()...)
+	res = append(res, proof.mu.ToBytes()...)
 	res = append(res, proof.innerProductProof.Bytes()...)
 
 	return res
@@ -145,44 +145,53 @@ func (proof *BulletProof) SetBytes(bytes []byte) error {
 
 	proof.comValues = make([]*crypto.Point, lenValues)
 	for i := 0; i < lenValues; i++ {
-		proof.comValues[i], err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+		proof.comValues[i], err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 		if err != nil {
 			return err
 		}
 		offset += crypto.Ed25519KeySize
 	}
 
-	proof.a, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.a, err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 	if err != nil {
 		return err
 	}
 	offset += crypto.Ed25519KeySize
 
-	proof.s, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.s, err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 	if err != nil {
 		return err
 	}
 	offset += crypto.Ed25519KeySize
 
-	proof.t1, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.t1, err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 	if err != nil {
 		return err
 	}
 	offset += crypto.Ed25519KeySize
 
-	proof.t2, err = new(crypto.Point).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.t2, err = new(crypto.Point).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
 	if err != nil {
 		return err
 	}
 	offset += crypto.Ed25519KeySize
 
-	proof.tauX = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.tauX, err = new(crypto.Scalar).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
 	offset += crypto.Ed25519KeySize
 
-	proof.tHat = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.tHat, err = new(crypto.Scalar).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
 	offset += crypto.Ed25519KeySize
 
-	proof.mu = new(crypto.Scalar).FromBytesS(bytes[offset : offset+crypto.Ed25519KeySize])
+	proof.mu, err = new(crypto.Scalar).FromBytes(bytes[offset : offset+crypto.Ed25519KeySize])
+	if err != nil {
+		return err
+	}
 	offset += crypto.Ed25519KeySize
 
 	proof.innerProductProof = new(InnerProductProof)
@@ -206,7 +215,7 @@ func (wit *BulletWitness) Single_Prove() (*BulletProof, error) {
 	rand := wit.rands[0]
 
 	// compute V = G^v * H^r
-	comValue := new(crypto.Point).AddPedersenWithBasePoint(valueInt, rand)
+	comValue := new(crypto.Point).AddPedersenBase(valueInt, rand)
 
 	// Convert value to binary array aL
 	// aR = aL - 1
@@ -251,8 +260,8 @@ func (wit *BulletWitness) Single_Prove() (*BulletProof, error) {
 	// PAPER LINES 48 - 50
 	// challenge y = H(csHash || comValue || A || S)
 	// challenge z = H(csHash || comValue || A || S || y)
-	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS()})
-	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), A.ToBytes(), S.ToBytes()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), A.ToBytes(), S.ToBytes(), y.ToBytes()})
 
 	zNeg := new(crypto.Scalar).Sub(new(crypto.Scalar).FromUint64(0), z)
 	zSquare := new(crypto.Scalar).Mul(z, z)
@@ -334,12 +343,12 @@ func (wit *BulletWitness) Single_Prove() (*BulletProof, error) {
 	tau1 := crypto.RandomScalar()
 	tau2 := crypto.RandomScalar()
 
-	T1 := new(crypto.Point).AddPedersenWithBasePoint(t1, tau1)
-	T2 := new(crypto.Point).AddPedersenWithBasePoint(t2, tau2)
+	T1 := new(crypto.Point).AddPedersenBase(t1, tau1)
+	T2 := new(crypto.Point).AddPedersenBase(t2, tau2)
 
 	// PAPER LINES 54 - 56
 	// generate challenge x = H(csHash || comValue || A || S || T1 || T2)
-	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), A.ToBytesS(), S.ToBytesS(), T1.ToBytesS(), T2.ToBytesS()})
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), A.ToBytes(), S.ToBytes(), T1.ToBytes(), T2.ToBytes()})
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
 	// PAPER LINES 58 - 62
@@ -438,14 +447,14 @@ func (proof BulletProof) Single_Verify() (bool, error) {
 	// recalculate challenge y, z
 	// challenge y = H(csHash || comValue || A || S)
 	// challenge z = H(csHash || comValue || A || S || y)
-	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS()})
-	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes(), y.ToBytes()})
 
 	zSquare := new(crypto.Scalar).Mul(z, z)
 	zCube := new(crypto.Scalar).Mul(zSquare, z)
 
 	// recalculate challenge x = H(csHash || comValue || A || S || T1 || T2)
-	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes(), proof.t1.ToBytes(), proof.t2.ToBytes()})
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
 	yVector := powerVector(y, n)
@@ -473,7 +482,7 @@ func (proof BulletProof) Single_Verify() (bool, error) {
 
 	deltaYZ.Sub(deltaYZ, new(crypto.Scalar).Mul(zCube, innerProduct2))
 
-	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+	left1 := new(crypto.Point).AddPedersenBase(proof.tHat, proof.tauX)
 
 	right1 := new(crypto.Point).Add(new(crypto.Point).ScalarMult(comValue, zSquare), new(crypto.Point).ScalarMultBase(deltaYZ))
 	right1.Add(right1, new(crypto.Point).AddPedersen(x, proof.t1, xSquare, proof.t2))
@@ -523,14 +532,14 @@ func (proof BulletProof) Single_Verify_Fast() (bool, error) {
 	// recalculate challenge y, z
 	// challenge y = H(csHash || comValue || A || S)
 	// challenge z = H(csHash || comValue || A || S || y)
-	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS()})
-	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes()})
+	z := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes(), y.ToBytes()})
 
 	zSquare := new(crypto.Scalar).Mul(z, z)
 	zCube := new(crypto.Scalar).Mul(zSquare, z)
 
 	// recalculate challenge x = H(csHash || comValue || A || S || T1 || T2)
-	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytesS(), proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	x := generateChallenge([][]byte{SingleBulletParam.cs, comValue.ToBytes(), proof.a.ToBytes(), proof.s.ToBytes(), proof.t1.ToBytes(), proof.t2.ToBytes()})
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
 	yVector := powerVector(y, n)
@@ -558,7 +567,7 @@ func (proof BulletProof) Single_Verify_Fast() (bool, error) {
 
 	deltaYZ.Sub(deltaYZ, new(crypto.Scalar).Mul(zCube, innerProduct2))
 
-	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+	left1 := new(crypto.Point).AddPedersenBase(proof.tHat, proof.tauX)
 
 	right1 := new(crypto.Point).Add(new(crypto.Point).ScalarMult(comValue, zSquare), new(crypto.Point).ScalarMultBase(deltaYZ))
 	right1.Add(right1, new(crypto.Point).AddPedersen(x, proof.t1, xSquare, proof.t2))
@@ -619,7 +628,7 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 
 	proof.comValues = make([]*crypto.Point, numValue)
 	for i := 0; i < numValue; i++ {
-		proof.comValues[i] = new(crypto.Point).AddPedersenWithBasePoint(new(crypto.Scalar).FromUint64(values[i]), rands[i])
+		proof.comValues[i] = new(crypto.Point).AddPedersenBase(new(crypto.Scalar).FromUint64(values[i]), rands[i])
 	}
 
 	n := maxExp
@@ -672,8 +681,8 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 	proof.s = S
 
 	// challenge y, z
-	y := generateChallenge([][]byte{aggParam.cs, A.ToBytesS(), S.ToBytesS()})
-	z := generateChallenge([][]byte{aggParam.cs, A.ToBytesS(), S.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{aggParam.cs, A.ToBytes(), S.ToBytes()})
+	z := generateChallenge([][]byte{aggParam.cs, A.ToBytes(), S.ToBytes(), y.ToBytes()})
 
 	zNeg := new(crypto.Scalar).Sub(new(crypto.Scalar).FromUint64(0), z)
 	zSquare := new(crypto.Scalar).Mul(z, z)
@@ -760,11 +769,11 @@ func (wit *BulletWitness) Agg_Prove() (*BulletProof, error) {
 	tau1 := crypto.RandomScalar()
 	tau2 := crypto.RandomScalar()
 
-	proof.t1 = new(crypto.Point).AddPedersenWithBasePoint(t1, tau1)
-	proof.t2 = new(crypto.Point).AddPedersenWithBasePoint(t2, tau2)
+	proof.t1 = new(crypto.Point).AddPedersenBase(t1, tau1)
+	proof.t2 = new(crypto.Point).AddPedersenBase(t2, tau2)
 
 	// challenge x = hash(G || H || A || S || T1 || T2)
-	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes(), proof.t1.ToBytes(), proof.t2.ToBytes()})
 
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
@@ -859,14 +868,14 @@ func (proof BulletProof) Agg_Verify() (bool, error) {
 	twoVectorN := powerVector(twoNumber, n)
 
 	// recalculate challenge y, z
-	y := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS()})
-	z := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes()})
+	z := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes(), y.ToBytes()})
 
 	zSquare := new(crypto.Scalar).Mul(z, z)
 
 	// challenge x = hash(G || H || A || S || T1 || T2)
 	//fmt.Printf("T2: %v\n", proof.t2)
-	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes(), proof.t1.ToBytes(), proof.t2.ToBytes()})
 
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
@@ -906,7 +915,7 @@ func (proof BulletProof) Agg_Verify() (bool, error) {
 	sum.Mul(sum, innerProduct2)
 	deltaYZ.Sub(deltaYZ, sum)
 
-	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+	left1 := new(crypto.Point).AddPedersenBase(proof.tHat, proof.tauX)
 
 	right1 := new(crypto.Point).ScalarMult(proof.t2, xSquare)
 	right1.Add(right1, new(crypto.Point).AddPedersen(deltaYZ, crypto.G, x, proof.t1))
@@ -951,13 +960,13 @@ func (proof BulletProof) Agg_Verify_Fast() (bool, error) {
 	twoVectorN := powerVector(twoNumber, n)
 
 	// recalculate challenge y, z
-	y := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS()})
-	z := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS(), y.ToBytesS()})
+	y := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes()})
+	z := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes(), y.ToBytes()})
 	zSquare := new(crypto.Scalar).Mul(z, z)
 
 	// challenge x = hash(G || H || A || S || T1 || T2)
 	//fmt.Printf("T2: %v\n", proof.t2)
-	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytesS(), proof.s.ToBytesS(), proof.t1.ToBytesS(), proof.t2.ToBytesS()})
+	x := generateChallenge([][]byte{aggParam.cs, proof.a.ToBytes(), proof.s.ToBytes(), proof.t1.ToBytes(), proof.t2.ToBytes()})
 	xSquare := new(crypto.Scalar).Mul(x, x)
 
 	yVector := powerVector(y, n*numValuePad)
@@ -996,7 +1005,7 @@ func (proof BulletProof) Agg_Verify_Fast() (bool, error) {
 	sum.Mul(sum, innerProduct2)
 	deltaYZ.Sub(deltaYZ, sum)
 
-	left1 := new(crypto.Point).AddPedersenWithBasePoint(proof.tHat, proof.tauX)
+	left1 := new(crypto.Point).AddPedersenBase(proof.tHat, proof.tauX)
 
 	right1 := new(crypto.Point).ScalarMult(proof.t2, xSquare)
 	right1.Add(right1, new(crypto.Point).AddPedersen(deltaYZ, crypto.G, x, proof.t1))

@@ -4,7 +4,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 
-	C25519 "github.com/deroproject/derosuite/crypto"
+	C25519 "github.com/incognitochain/incognito-chain-privacy/crypto/curve25519"
 	"testing"
 )
 
@@ -85,16 +85,16 @@ func TestScalarMul(t *testing.T) {
 
 func TestScalarMulBase(t *testing.T) {
 
-	Gbytes := G.ToBytesS()
+	Gbytes := G.ToBytes()
 	fmt.Printf("Gbytes: %v\n", Gbytes)
 
 	array := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 	aScalar := new(Scalar)
-	aScalar.FromBytesS(array)
+	aScalar.FromBytes(array)
 	res1 := new(Point).ScalarMultBase(aScalar)
 	res2 := new(Point).ScalarMult(G, aScalar)
-	fmt.Printf("Res1: %v\n", res1.ToBytesS())
-	fmt.Printf("Res2: %v\n", res2.ToBytesS())
+	fmt.Printf("Res1: %v\n", res1.ToBytes())
+	fmt.Printf("Res2: %v\n", res2.ToBytes())
 
 	for i := 0; i < 1000; i++ {
 		a := RandomScalar()
@@ -105,11 +105,11 @@ func TestScalarMulBase(t *testing.T) {
 		res := new(Point).Add(res1, res2)
 		tmpres := res.MarshalText()
 
-		resPrime1 := C25519.ScalarmultBase(a.key)
-		resPrime2 := C25519.ScalarmultBase(b.key)
+		resPrime1 := C25519.ScalarmultBase(&a.key)
+		resPrime2 := C25519.ScalarmultBase(&b.key)
 		var resPrime C25519.Key
 
-		C25519.AddKeys(&resPrime, &resPrime1, &resPrime2)
+		C25519.AddKeys(&resPrime, resPrime1, resPrime2)
 
 		tmpresPrime, _ := resPrime.MarshalText()
 		ok := subtle.ConstantTimeCompare(tmpres, tmpresPrime) == 1
@@ -195,23 +195,6 @@ func TestPoint_InvertScalarMul(t *testing.T) {
 	}
 }
 
-func TestPoint_InvertScalarMultBase(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		a := RandomScalar()
-
-		// compute (g^1/a)^a = g
-		res := new(Point).InvertScalarMultBase(a)
-		res.ScalarMult(res, a)
-		tmpres := res.MarshalText()
-
-		tmpresPrime, _ := C25519.GBASE.MarshalText()
-		ok := subtle.ConstantTimeCompare(tmpres, tmpresPrime) == 1
-		if !ok {
-			t.Fatalf("expected Invert Scalar Mul Base correct !")
-		}
-	}
-}
-
 func TestHashToPoint(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		for j := 0; j < 6; j++ {
@@ -240,4 +223,16 @@ func TestPoint_HBase(t*testing.T){
 
 	h := HashToPointFromIndex(0, CStringBasePoint)
 	fmt.Printf("hBytes %#v\n", h.ToBytes())
+}
+
+func TestPoint_Set(t*testing.T){
+	a := RandomPoint()
+	fmt.Printf("a: %v\n", a)
+
+	b := new(Point).Set(a)
+	fmt.Printf("b: %v\n", b)
+
+	b.Set(RandomPoint())
+	fmt.Printf("b after: %v\n", b)
+	fmt.Printf("a after: %v\n", a)
 }

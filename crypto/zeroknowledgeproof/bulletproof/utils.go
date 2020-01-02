@@ -37,8 +37,8 @@ func newBulletproofParams(m int) *bulletproofParams {
 	for i := 0; i < capacity; i++ {
 		param.g[i] = crypto.HashToPointFromIndex(int64(i), crypto.CStringBulletProof)
 		param.h[i] = crypto.HashToPointFromIndex(int64(i + maxCapacity), crypto.CStringBulletProof)
-		csByteG = append(csByteG, param.g[i].ToBytesS()...)
-		csByteH = append(csByteH, param.h[i].ToBytesS()...)
+		csByteG = append(csByteG, param.g[i].ToBytes()...)
+		csByteH = append(csByteH, param.h[i].ToBytes()...)
 	}
 
 	param.u = new(crypto.Point)
@@ -46,8 +46,8 @@ func newBulletproofParams(m int) *bulletproofParams {
 
 	param.cs = append(param.cs, csByteG...)
 	param.cs = append(param.cs, csByteH...)
-	param.cs = append(param.cs, param.u.ToBytesS()...)
-	param.cs = crypto.HashToScalar(param.cs).ToBytesS()
+	param.cs = append(param.cs, param.u.ToBytes()...)
+	param.cs = crypto.HashToScalar(param.cs).ToBytes()
 
 	return param
 }
@@ -85,14 +85,14 @@ func setBulletproofParams(g []*crypto.Point, h []*crypto.Point) (*bulletproofPar
 		newParam.g[i] = new(crypto.Point).Set(BulletParam.g[i])
 		newParam.h[i] = new(crypto.Point).Set(BulletParam.h[i])
 
-		gBytes = append(gBytes, newParam.g[i].ToBytesS()...)
-		hBytes = append(hBytes, newParam.h[i].ToBytesS()...)
+		gBytes = append(gBytes, newParam.g[i].ToBytes()...)
+		hBytes = append(hBytes, newParam.h[i].ToBytes()...)
 	}
 
 	csBytes = append(csBytes, gBytes...)
 	csBytes = append(csBytes, hBytes...)
-	csBytes = append(csBytes, newParam.u.ToBytesS()...)
-	newParam.cs = crypto.HashToScalar(csBytes).ToBytesS()
+	csBytes = append(csBytes, newParam.u.ToBytes()...)
+	newParam.cs = crypto.HashToScalar(csBytes).ToBytes()
 
 	return newParam, nil
 }

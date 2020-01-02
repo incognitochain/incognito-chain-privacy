@@ -30,8 +30,8 @@ const KeyLength = 32
 // Key can be a Scalar or a Point
 type Key [KeyLength]byte
 
-func (k Key) MarshalText() ([]byte ) {
-	return []byte(fmt.Sprintf("%x", k[:]))
+func (k Key) MarshalText() ([]byte, error) {
+	return []byte(fmt.Sprintf("%x", k[:])), nil
 }
 
 func (k *Key) UnmarshalText(data []byte) (err error) {

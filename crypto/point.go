@@ -22,10 +22,12 @@ func (p Point) PointValid() bool {
 	return point.FromBytes(&p.key)
 }
 
+// should be removed
 func (p Point) GetKey() C25519.Key {
 	return p.key
 }
 
+// should be removed
 func (p *Point) SetKey(a *C25519.Key) (*Point, error) {
 	if p == nil {
 		p = new(Point)
@@ -64,30 +66,12 @@ func (p *Point) UnmarshalText(data []byte) (*Point, error) {
 	return p, nil
 }
 
-func (p Point) ToBytes() [Ed25519KeySize]byte {
-	return p.key.ToBytes()
-}
-
-func (p Point) ToBytesS() []byte {
+func (p Point) ToBytes() []byte {
 	slice := p.key.ToBytes()
 	return slice[:]
 }
 
-func (p *Point) FromBytes(b [Ed25519KeySize]byte) (*Point, error) {
-	if p == nil {
-		p = new(Point)
-	}
-	p.key.FromBytes(b)
-
-	var point C25519.ExtendedGroupElement
-	if !point.FromBytes(&p.key){
-		return nil, errors.New("Invalid point value")
-	}
-
-	return p, nil
-}
-
-func (p *Point) FromBytesS(b []byte) (*Point, error) {
+func (p *Point) FromBytes(b []byte) (*Point, error) {
 	if len(b) != Ed25519KeySize {
 		return nil, errors.New("Invalid Ed25519 Key Size")
 	}
@@ -141,7 +125,6 @@ func (p *Point) ScalarMult(pa *Point, a *Scalar) *Point {
 	return p
 }
 
-
 func (p *Point) MultiScalarMultCached(scalarLs []*Scalar, pointPreComputedLs [][8]C25519.CachedGroupElement) *Point {
 	nSc := len(scalarLs)
 
@@ -176,15 +159,6 @@ func (p *Point) MultiScalarMult(scalarLs []*Scalar, pointLs []*Point) *Point {
 	key := C25519.MultiScalarMultKey(pointKeyLs, scalarKeyLs)
 	res, _ := new(Point).SetKey(key)
 	return res
-}
-
-func (p *Point) InvertScalarMultBase(a *Scalar) *Point {
-	if p == nil {
-		p = new(Point)
-	}
-	inv := new(Scalar).Invert(a)
-	p.ScalarMultBase(inv)
-	return p
 }
 
 func (p *Point) InvertScalarMult(pa *Point, a *Scalar) *Point {
@@ -230,21 +204,9 @@ func (p *Point) AddPedersen(a *Scalar, A *Point, b *Scalar, B *Point) *Point {
 	return p
 }
 
-// AddPedersenWithBasePoint returns aG + bH
-func (p *Point) AddPedersenWithBasePoint(a *Scalar, b *Scalar) *Point {
+// AddPedersenBase returns aG + bH
+func (p *Point) AddPedersenBase(a *Scalar, b *Scalar) *Point {
 	return p.AddPedersen(a, G, b, H)
-}
-
-
-func (p *Point) AddPedersenCached(a *Scalar, APreCompute [8]C25519.CachedGroupElement, b *Scalar, BPreCompute [8]C25519.CachedGroupElement) *Point {
-	if p == nil {
-		p = new(Point)
-	}
-
-	var key C25519.Key
-	C25519.AddKeys3_3(&key, &a.key, &APreCompute, &b.key, &BPreCompute)
-	p.key = key
-	return p
 }
 
 func (p *Point) Sub(pa, pb *Point) *Point {
@@ -258,8 +220,8 @@ func (p *Point) Sub(pa, pb *Point) *Point {
 }
 
 func IsPointEqual(pa *Point, pb *Point) bool {
-	tmpa := pa.ToBytesS()
-	tmpb := pb.ToBytesS()
+	tmpa := pa.ToBytes()
+	tmpb := pb.ToBytes()
 
 	return subtle.ConstantTimeCompare(tmpa, tmpb) == 1
 }

@@ -79,7 +79,7 @@ func paddedAppend(size uint, dst, src []byte) []byte {
 func AppendPointsToBytesArray(bytes []byte, points []*Point) []byte {
 	res := bytes
 	for i := 0; i < len(points); i++ {
-		res = append(res, points[i].ToBytesS()...)
+		res = append(res, points[i].ToBytes()...)
 	}
 
 	return res

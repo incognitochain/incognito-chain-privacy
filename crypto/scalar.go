@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,10 +11,6 @@ import (
 
 type Scalar struct {
 	key C25519.Key
-}
-
-func (sc Scalar) GetKey() C25519.Key {
-	return sc.key
 }
 
 func (sc Scalar) String() string {
@@ -39,30 +34,12 @@ func (sc *Scalar) UnmarshalText(data []byte) (*Scalar, error) {
 	return sc, nil
 }
 
-func (sc Scalar) ToBytes() [Ed25519KeySize]byte {
-	return sc.key.ToBytes()
-}
-
-func (sc Scalar) ToBytesS() []byte {
+func (sc Scalar) ToBytes() []byte {
 	slice := sc.key.ToBytes()
 	return slice[:]
 }
 
-func (sc *Scalar) FromBytes(b [Ed25519KeySize]byte) (*Scalar) {
-	if sc == nil {
-		sc = new(Scalar)
-	}
-	sc.key.FromBytes(b)
-	//if !C25519.ScValid(&sc.key) {
-	//	panic("Invalid Scalar Value")
-	//}
-	return sc
-}
-
-func (sc *Scalar) FromBytesS(b []byte) (*Scalar) {
-	//if len(b) != Ed25519KeySize {
-	//	panic("Invalid Ed25519 Key Size")
-	//}
+func (sc *Scalar) FromBytes(b []byte) (*Scalar, error) {
 	if sc == nil {
 		sc = new(Scalar)
 	}
@@ -70,19 +47,8 @@ func (sc *Scalar) FromBytesS(b []byte) (*Scalar) {
 	copy(array[:], b)
 	sc.key.FromBytes(array)
 
-	//if !C25519.ScValid(&sc.key) {
-	//	panic("Invalid Scalar Value")
-	//}
-	return sc
-}
-
-func (sc *Scalar) SetKey(a *C25519.Key) (*Scalar, error) {
-	if sc == nil {
-		sc = new(Scalar)
-	}
-	sc.key = *a
-	if sc.ScalarValid() == false {
-		return nil, errors.New("Invalid key value")
+	if !C25519.ScValid(&sc.key) {
+		return nil, errors.New("Scalar FromBytes bytes array is invalid")
 	}
 	return sc, nil
 }
@@ -91,7 +57,7 @@ func (sc *Scalar) Set(a *Scalar) (*Scalar) {
 	if sc == nil {
 		sc = new(Scalar)
 	}
-	sc.key = a.key
+	sc.key = a.key  // don't change a.key when changing sc.key
 	return sc
 }
 
@@ -104,8 +70,9 @@ func RandomScalar() *Scalar {
 
 func HashToScalar(data []byte) *Scalar {
 	key := C25519.HashToScalar(data)
-	sc, error := new(Scalar).SetKey(key)
-	if error != nil {
+	sc := new(Scalar)
+	sc.key = *key
+	if !sc.ScalarValid() {
 		return nil
 	}
 	return sc
@@ -115,7 +82,7 @@ func (sc *Scalar) FromUint64(i uint64) *Scalar {
 	if sc == nil {
 		sc = new(Scalar)
 	}
-	sc.SetKey(d2h(i))
+	sc.key = *d2h(i)
 	return sc
 }
 
@@ -123,7 +90,7 @@ func (sc *Scalar) ToUint64() uint64 {
 	if sc == nil {
 		return 0
 	}
-	keyBN := new(big.Int).SetBytes(sc.ToBytesS())
+	keyBN := new(big.Int).SetBytes(sc.ToBytes())
 	return keyBN.Uint64()
 }
 
@@ -190,24 +157,10 @@ func (sc *Scalar) ScalarValid() bool {
 	return C25519.ScValid(&sc.key)
 }
 
-func (sc *Scalar) IsOne() bool {
-	s := sc.key
-	return ((int(s[0] | s[1] | s[2] | s[3] | s[4] | s[5] | s[6] | s[7] | s[8] |
-		s[9] | s[10] | s[11] | s[12] | s[13] | s[14] | s[15] | s[16] | s[17] |
-		s[18] | s[19] | s[20] | s[21] | s[22] | s[23] | s[24] | s[25] | s[26] |
-		s[27] | s[28] | s[29] | s[30] | s[31]) - 1) >> 8)+1 == 1
-}
-
-func IsScalarEqual(sc1, sc2 *Scalar) bool {
-	tmpa := sc1.ToBytesS()
-	tmpb := sc2.ToBytesS()
-
-	return subtle.ConstantTimeCompare(tmpa, tmpb) == 1
-}
-
-func Compare(sca, scb *Scalar) int {
-	tmpa := sca.ToBytesS()
-	tmpb := scb.ToBytesS()
+// todo: improve performance
+func CompareScalar(sca, scb *Scalar) int {
+	tmpa := sca.ToBytes()
+	tmpb := scb.ToBytes()
 
 	for i := Ed25519KeySize - 1; i >= 0; i-- {
 		if uint64(tmpa[i]) > uint64(tmpb[i]) {
@@ -221,20 +174,13 @@ func Compare(sca, scb *Scalar) int {
 	return 0
 }
 
-func (sc *Scalar) IsZero() bool {
-	if sc == nil {
-		return false
-	}
-	return C25519.ScIsZero(&sc.key)
-}
-
 func CheckDuplicateScalarArray(arr []*Scalar) bool {
 	sort.Slice(arr, func(i, j int) bool {
-		return Compare(arr[i], arr[j]) == -1
+		return CompareScalar(arr[i], arr[j]) == -1
 	})
 
 	for i := 0; i < len(arr)-1; i++ {
-		if IsScalarEqual(arr[i], arr[i+1]) == true {
+		if CompareScalar(arr[i], arr[i+1]) == 0 {
 			return true
 		}
 	}
