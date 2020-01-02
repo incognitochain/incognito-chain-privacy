@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	C25519 "github.com/deroproject/derosuite/crypto"
+	C25519 "github.com/incognitochain/incognito-chain-privacy/crypto/curve25519"
 	"math/big"
 )
 

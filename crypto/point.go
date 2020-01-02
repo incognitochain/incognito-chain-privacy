@@ -5,8 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	C25519 "github.com/deroproject/derosuite/crypto"
-	"github.com/incognitochain/incognito-chain-privacy/crypto/curve25519"
+	C25519 "github.com/incognitochain/incognito-chain-privacy/crypto/curve25519"
 )
 
 type Point struct {
@@ -34,7 +33,7 @@ func (p *Point) SetKey(a *C25519.Key) (*Point, error) {
 	p.key = *a
 
 	var point C25519.ExtendedGroupElement
-	if !point.FromBytes(&p.key) {
+	if !point.FromBytes(&p.key){
 		return nil, errors.New("Invalid point value")
 	}
 	return p, nil
@@ -81,7 +80,7 @@ func (p *Point) FromBytes(b [Ed25519KeySize]byte) (*Point, error) {
 	p.key.FromBytes(b)
 
 	var point C25519.ExtendedGroupElement
-	if !point.FromBytes(&p.key) {
+	if !point.FromBytes(&p.key){
 		return nil, errors.New("Invalid point value")
 	}
 
@@ -97,11 +96,11 @@ func (p *Point) FromBytesS(b []byte) (*Point, error) {
 		p = new(Point)
 	}
 	var array [Ed25519KeySize]byte
-	copy(array[:], b)
+	copy(array[:],b)
 	p.key.FromBytes(array)
 
 	var point C25519.ExtendedGroupElement
-	if !point.FromBytes(&p.key) {
+	if !point.FromBytes(&p.key){
 		return nil, errors.New("Invalid point value")
 	}
 
@@ -128,8 +127,8 @@ func (p *Point) ScalarMultBase(a *Scalar) *Point {
 	if p == nil {
 		p = new(Point)
 	}
-	key := C25519.ScalarmultBase(a.key)
-	p.key = key
+	key := C25519.ScalarmultBase(&a.key)
+	p.key = *key
 	return p
 }
 
@@ -142,6 +141,7 @@ func (p *Point) ScalarMult(pa *Point, a *Scalar) *Point {
 	return p
 }
 
+
 func (p *Point) MultiScalarMultCached(scalarLs []*Scalar, pointPreComputedLs [][8]C25519.CachedGroupElement) *Point {
 	nSc := len(scalarLs)
 
@@ -150,13 +150,14 @@ func (p *Point) MultiScalarMultCached(scalarLs []*Scalar, pointPreComputedLs [][
 	}
 
 	scalarKeyLs := make([]*C25519.Key, nSc)
-	for i := 0; i < nSc; i++ {
+	for i:= 0; i < nSc ; i++ {
 		scalarKeyLs[i] = &scalarLs[i].key
 	}
-	key := curve25519.MultiScalarMultKeyCached(pointPreComputedLs, scalarKeyLs)
+	key := C25519.MultiScalarMultKeyCached(pointPreComputedLs, scalarKeyLs)
 	res, _ := new(Point).SetKey(key)
 	return res
 }
+
 
 func (p *Point) MultiScalarMult(scalarLs []*Scalar, pointLs []*Point) *Point {
 	nSc := len(scalarLs)
@@ -168,11 +169,11 @@ func (p *Point) MultiScalarMult(scalarLs []*Scalar, pointLs []*Point) *Point {
 
 	scalarKeyLs := make([]*C25519.Key, nSc)
 	pointKeyLs := make([]*C25519.Key, nSc)
-	for i := 0; i < nSc; i++ {
+	for i:= 0; i < nSc ; i++ {
 		scalarKeyLs[i] = &scalarLs[i].key
 		pointKeyLs[i] = &pointLs[i].key
 	}
-	key := curve25519.MultiScalarMultKey(pointKeyLs, scalarKeyLs)
+	key := C25519.MultiScalarMultKey(pointKeyLs, scalarKeyLs)
 	res, _ := new(Point).SetKey(key)
 	return res
 }
@@ -188,14 +189,13 @@ func (p *Point) InvertScalarMultBase(a *Scalar) *Point {
 
 func (p *Point) InvertScalarMult(pa *Point, a *Scalar) *Point {
 	inv := new(Scalar).Invert(a)
-	p.ScalarMult(pa, inv)
+	p.ScalarMult(pa,inv)
 	return p
 }
 
-func (p *Point) Derive(pa *Point, a *Scalar, b *Scalar) *Point {
+func (p *Point) Derive(pa *Point, a *Scalar, b *Scalar) *Point{
 	c := new(Scalar).Add(a, b)
-	result := p.InvertScalarMult(pa, c)
-	return result
+	return p.InvertScalarMult(pa, c)
 }
 
 func (p *Point) Add(pa, pb *Point) *Point {
@@ -235,6 +235,7 @@ func (p *Point) AddPedersenWithBasePoint(a *Scalar, b *Scalar) *Point {
 	return p.AddPedersen(a, G, b, H)
 }
 
+
 func (p *Point) AddPedersenCached(a *Scalar, APreCompute [8]C25519.CachedGroupElement, b *Scalar, BPreCompute [8]C25519.CachedGroupElement) *Point {
 	if p == nil {
 		p = new(Point)
@@ -263,16 +264,16 @@ func IsPointEqual(pa *Point, pb *Point) bool {
 	return subtle.ConstantTimeCompare(tmpa, tmpb) == 1
 }
 
-func HashToPointFromIndex(index int64, prefix string) *Point {
+func HashToPointFromIndex(index int64, padStr string) *Point {
 	array := C25519.GBASE.ToBytes()
 	msg := array[:]
-	msg = append(msg, []byte(prefix)...)
-	msg = append(msg, []byte(string(index))...)
+	msg = append(msg,[]byte(padStr)...)
+	msg = append(msg,[]byte(string(index))...)
 
 	keyHash := C25519.Key(C25519.Keccak256(msg))
 	keyPoint := keyHash.HashToPoint()
 
-	p, _ := new(Point).SetKey(&keyPoint)
+	p, _ := new(Point).SetKey(keyPoint)
 	return p
 }
 
@@ -280,6 +281,6 @@ func HashToPoint(b []byte) *Point {
 	keyHash := C25519.Key(C25519.Keccak256(b))
 	keyPoint := keyHash.HashToPoint()
 
-	p, _ := new(Point).SetKey(&keyPoint)
+	p, _ := new(Point).SetKey(keyPoint)
 	return p
 }
